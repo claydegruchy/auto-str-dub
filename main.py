@@ -78,6 +78,7 @@ def main():
 	parser.add_argument("srt", help="Path to input text or SRT file")
 	parser.add_argument("video", help="Video for this SRT file")
 	parser.add_argument("--dryrun", action="store_true", help="Dryrun mode")
+	parser.add_argument("--limit", 	type=int, default=None, help="Limits the number of lines, usually shortening the video")
 
 	args = parser.parse_args()
 
@@ -131,6 +132,9 @@ def main():
 	print("Parsed file", len(str_json), "blocks to complete")
 	for block in str_json:
 		print("starting block", i,"out of" ,len(str_json))
+		if args.limit is not None and i>args.limit:
+			print("limit reached")
+			break
 		i+=1
 		filename ="_"+ block["index"] + ".wav"
 		print(block)
@@ -163,7 +167,9 @@ def main():
 	clips=[]
 	for block in str_json:
 
-		if i>3:
+		exit()
+
+		if args.limit is not None and i>args.limit:
 			print("limit reached")
 			break
 		i+=1
@@ -188,10 +194,8 @@ def main():
 
 	print("updating video with new audio")
 
-	video_output_path = "dubbed "+video_path.name
-	
-	print(video_path.parent)
-	exit()
+	video_output_path = video_path.parent / f"dubbed {video_path.name}"
+
 	video = VideoFileClip(video_path)
 
 	# Load audio
