@@ -1,0 +1,21 @@
+[project]
+name = "auto-str-dub"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+	    "coqui-tts[codec]>=0.24.3",
+	    "fastapi[standard]>=0.115.11",
+	    "langchain>=0.3.20",
+	    "langchain-community>=0.3.19",
+	    "moviepy>=2.1.2",
+	    "nltk>=3.9.1",
+	    "pydub>=0.25.1",
+	    "pymupdf>=1.25.4",
+	    "pymupdf4llm>=0.0.17",
+	    "pypdf>=5.4.0",
+	    "torch>=2.10.0",
+	    "torchaudio>=2.10.0",
+	    "torchvision>=0.25.0",
+]
