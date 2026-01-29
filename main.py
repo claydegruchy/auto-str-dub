@@ -79,6 +79,7 @@ def main():
 	parser.add_argument("video", help="Video for this SRT file")
 	parser.add_argument("--dryrun", action="store_true", help="Dryrun mode")
 	parser.add_argument("--limit", 	type=int, default=None, help="Limits the number of lines, usually shortening the video")
+	parser.add_argument("--nonalign", 	action="store_true",help="Dont try to shink audio files that are too long")
 
 	args = parser.parse_args()
 
@@ -132,6 +133,9 @@ def main():
 	print("Parsed file", len(str_json), "blocks to complete")
 	for block in str_json:
 		print("starting block", i,"out of" ,len(str_json))
+
+		start, end = srt_time_to_sec(block["timing"])
+		block_duration = end-start
 		if args.limit is not None and i>args.limit:
 			print("limit reached")
 			break
@@ -139,9 +143,17 @@ def main():
 		filename ="_"+ block["index"] + ".wav"
 		print(block)
 
+		speed_modifier = 1
+
 		if filename in done_files:
 			print(filename, "done, skipping")
-			continue
+			audio = AudioFileClip(str(work_dir/filename))
+			audio_duration = audio.duration  # seconds
+			if audio_duration> block_duration:
+				print("this audio is too long for it's slot", audio_duration,"vs",block_duration)
+				speed_modifier=audio_duration/block_duration
+			else:
+				continue
 
 		path = work_dir/filename
 		
@@ -156,7 +168,9 @@ def main():
 				text=block["text"],
 				file_path=path,
 				speaker_wav=base_params["speaker_wav"],
-				language=base_params["language_idx"]
+				language=base_params["language_idx"],
+				# speed=1.1   # >1.0 faster, <1.0 slower
+
 			)
 	print("tts done")
 
@@ -166,8 +180,7 @@ def main():
 	i=0
 	clips=[]
 	for block in str_json:
-
-		exit()
+		
 
 		if args.limit is not None and i>args.limit:
 			print("limit reached")
@@ -193,6 +206,10 @@ def main():
 	combined.write_audiofile(str(combined_path))
 
 	print("updating video with new audio")
+	if args.dryrun:
+		print("skipping file creation")
+		exit()
+
 
 	video_output_path = video_path.parent / f"dubbed {video_path.name}"
 
