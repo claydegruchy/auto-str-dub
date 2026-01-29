@@ -13,3 +13,6 @@ work/.DS_Store
 work/*
 samples/*
 .DS_Store
+
+
+*.mp4

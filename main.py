@@ -3,6 +3,9 @@ from pathlib import Path
 import os
 import sys
 import argparse
+import re
+
+from moviepy import AudioFileClip, CompositeAudioClip,VideoFileClip
 
 base_params = TTSOptions(
 	model_name="tts_models/multilingual/multi-dataset/xtts_v2",
@@ -25,6 +28,17 @@ def init_tts():
 
 	return TTS(base_params["model_name"]).to(device)
 
+def srt_time_to_sec(timing_str):
+	start_str, end_str = timing_str.split(" --> ")
+	def parse_time(s):
+		h, m, sec_ms = s.split(":")
+		s, ms = sec_ms.split(",")
+		return int(h)*3600 + int(m)*60 + int(s) + int(ms)/1000
+	return parse_time(start_str), parse_time(end_str)
+
+
+
+
 
 def srt_to_dict(srt_text):
 	blocks = srt_text.strip().split("\n\n")
@@ -34,8 +48,9 @@ def srt_to_dict(srt_text):
 		lines = block.splitlines()
 		if len(lines) < 3:
 			continue
+		index = re.sub(r"\D", "", lines[0])
+		
 
-		index = lines[0]
 		timing = lines[1]
 		text = "\n".join(lines[2:])
 
@@ -60,17 +75,22 @@ def dict_to_srt(parsed_srt):
 
 def main():
 	parser = argparse.ArgumentParser(description="Run XTTS from text/SRT file")
-	parser.add_argument("text_file", help="Path to input text or SRT file")
-	parser.add_argument("-o", "--out", default="output.wav", help="Output wav path")
+	parser.add_argument("srt", help="Path to input text or SRT file")
+	parser.add_argument("video", default="none.wav", help="Video for this SRT file")
 
 	args = parser.parse_args()
 
-	text_path = Path(args.text_file)
+	
+	text_path = Path(args.srt)
 	if not text_path.exists():
 		print("Text/SRT file not found", file=sys.stderr)
 		sys.exit(1)
-
-
+	
+	video_path = Path(args.video)
+	if not video_path.exists():
+		print("Video file not found", file=sys.stderr)
+		sys.exit(1)
+	
 
 	# Ensure all base speaker_wav samples exist
 	missing = [p for p in base_params["speaker_wav"] if not Path(p).exists()]
@@ -101,7 +121,7 @@ def main():
 		sys.exit(1)
 
 	done_files = [x.name for x in list(work_dir.glob("*.wav"))]
-	print(done_files)
+	print("starting", text_path.name, len(done_files), "files already completed")
 	# exit()
 	# tts = init_tts()
 	str_json=srt_to_dict(text)
@@ -113,7 +133,9 @@ def main():
 			print("limit reached")
 			break
 		i+=1
-		filename = block["index"] + ".wav"
+		filename ="_"+ block["index"] + ".wav"
+		print(block)
+
 		if filename in done_files:
 			print(filename, "done, skipping")
 			continue
@@ -121,8 +143,8 @@ def main():
 		path = work_dir/filename
 		
 
-		print("making audio",block["text"],path)
 
+		print("making audio",block["text"],path)
 		# # Run TTS to file
 		# tts.tts_to_file(
 		# 	text=block["text"],
@@ -130,9 +152,68 @@ def main():
 		# 	speaker_wav=base_params["speaker_wav"],
 		# 	language=base_params["language_idx"]
 		# )
-		
+	print("tts done")
 
-	print("done")
+	print("making combined audio file")
+	
+	# for file in [x for x in list(work_dir.glob("*.wav"))]:
+	i=0
+	clips=[]
+	for block in str_json:
+
+		if i>3:
+			print("limit reached")
+			break
+		i+=1
+
+		index=block["index"]
+		wav_file = work_dir / f"_{index}.wav"
+		if not wav_file.exists():
+			print(f"Warning: {wav_file} not found, aborting")
+			sys.exit(1)
+
+		start, end = srt_time_to_sec(block["timing"])
+
+		clip = AudioFileClip(str(wav_file)).with_start(start)
+		clips.append(clip)
+
+
+
+		print(wav_file,start,end)
+	combined_path = work_dir/"combined.wav"
+	combined = CompositeAudioClip(clips)
+	combined.write_audiofile(str(combined_path))
+
+	print("updating video with new audio")
+
+	video_output_path = "dubbed "+video_path.name
+	video = VideoFileClip(video_path)
+
+	# Load audio
+	new_audio = AudioFileClip(str(combined_path))
+
+	# Truncate audio slightly to avoid MoviePy overshoot
+	truncated_audio = new_audio.subclipped(0, new_audio.duration - 0.05)  # 50ms shorter
+
+	# Clip video to match truncated audio
+	video = video.subclipped(0, truncated_audio.duration)
+
+	# Replace audio
+	video = video.with_audio(truncated_audio)
+
+	# Export
+	video.write_videofile(
+		video_output_path,
+		codec="libx264",
+		audio_codec="aac",
+		temp_audiofile="temp-audio.m4a",
+		remove_temp=True
+	)
+
+
+	print("finished", "wrote video to", video_output_path)
+
+
 
 		
 	exit()
