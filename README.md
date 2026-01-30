@@ -27,4 +27,5 @@ it takes a srt file and a video file
 # why
 i'm doing my hunting course and theres a lot of stuff in there in swedish. i already translated the subtitles (using [auto-str-translation-ai](https://github.com/claydegruchy/auto-str-translation-ai) which i also made) but i want to be able to watch without reading
 
-also too many other things out there are too wonky for me
+# i just want to use tts
+if you want to use tts, just run the `tts.py` (`un run tts.py {text} {outfile}`)
