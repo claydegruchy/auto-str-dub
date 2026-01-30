@@ -1,4 +1,4 @@
-from models import TTSOptions
+
 from pathlib import Path
 import os
 import sys
@@ -8,28 +8,12 @@ from utilties import speed_up_clip
 from pathlib import Path
 from moviepy import AudioFileClip, CompositeAudioClip,VideoFileClip,afx, vfx,AudioArrayClip
 
+from tts import xtts
 
 
-base_params = TTSOptions(
-	model_name="tts_models/multilingual/multi-dataset/xtts_v2",
-	speaker_wav=[
-		"samples/derekjacobi_illidad3.wav"
-	],
-	language_idx="en",
-	title=""
-)
 
 
-def init_tts():
-	print("Init TTS")
-	print("Starting imports")
-	from TTS.api import TTS
-	import torch
-	print("Get device")
-	device = "cuda" if torch.cuda.is_available() else "cpu"
-	print("Attaching model to device")
 
-	return TTS(base_params["model_name"]).to(device)
 
 def srt_time_to_sec(timing_str):
 	start_str, end_str = timing_str.split(" --> ")
@@ -98,13 +82,7 @@ def main():
 		sys.exit(1)
 	
 
-	# Ensure all base speaker_wav samples exist
-	missing = [p for p in base_params["speaker_wav"] if not Path(p).exists()]
-	if missing:
-		print("Missing speaker wavs:", file=sys.stderr)
-		for p in missing:
-			print(p, file=sys.stderr)
-		sys.exit(1)
+
 
 	# Create a working folder per input file (SRT or text)
 	work_dir = Path("work") / text_path.stem
@@ -129,7 +107,7 @@ def main():
 	done_files = [x.name for x in list(work_dir.glob("*.wav"))]
 	print("starting", text_path.name, len(done_files), "files already completed")
 	# exit()
-	tts=None
+	
 	
 	str_json=srt_to_dict(text)
 	i=0
@@ -182,15 +160,11 @@ def main():
 
 
 		# # Run TTS to file
-		if not tts and not args.dryrun:
-			tts = init_tts()
-		if tts:
+		if not args.dryrun:
 			while True:
-				tts.tts_to_file(
+				xtts(
 					text=block["text"],
 					file_path=path,
-					speaker_wav=base_params["speaker_wav"],
-					language=base_params["language_idx"],
 					speed=speed_factor
 				)
 				clip = AudioFileClip(str(path))
