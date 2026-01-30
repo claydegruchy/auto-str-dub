@@ -4,8 +4,11 @@ import os
 import sys
 import argparse
 import re
+from timescale import speed_up_clip 
 
-from moviepy import AudioFileClip, CompositeAudioClip,VideoFileClip
+from moviepy import AudioFileClip, CompositeAudioClip,VideoFileClip,afx, vfx
+
+
 
 base_params = TTSOptions(
 	model_name="tts_models/multilingual/multi-dataset/xtts_v2",
@@ -131,11 +134,20 @@ def main():
 	str_json=srt_to_dict(text)
 	i=0
 	print("Parsed file", len(str_json), "blocks to complete")
-	for block in str_json:
+	for block, next_block in zip(str_json, str_json[1:]+ [None]):
+
 		print("starting block", i,"out of" ,len(str_json))
 
 		start, end = srt_time_to_sec(block["timing"])
 		block_duration = end-start
+		print("normal duration", block_duration)
+		if next_block:
+			next_start, next_end = srt_time_to_sec(next_block["timing"])
+			if next_start-start-.2>block_duration:
+				block_duration =next_start-start-.2
+				print("extra duration", block_duration)
+
+		
 		if args.limit is not None and i>args.limit:
 			print("limit reached")
 			break
@@ -143,37 +155,50 @@ def main():
 		filename ="_"+ block["index"] + ".wav"
 		print(block)
 
-		speed_modifier = 1
 
 		if filename in done_files:
 			print(filename, "done, skipping")
-			audio = AudioFileClip(str(work_dir/filename))
-			audio_duration = audio.duration  # seconds
-			if audio_duration> block_duration:
-				print("this audio is too long for it's slot", audio_duration,"vs",block_duration)
-				speed_modifier=audio_duration/block_duration
-			else:
-				continue
+			continue
 
 		path = work_dir/filename
 		
-
+		# handle speed
+		speed_factor=1
+		avg_speaking_speed=2.33 #average words per m
+		words = re.findall(r'\b\w+\b', block["text"])
+		s = len(words)/(block_duration *avg_speaking_speed) 
+		if s>1:
+			print("this block should contain", block_duration *avg_speaking_speed, "words but contains",len(words))
+			print("speeding up speech for this block by", s)
+			speed_factor=s*1.5
 
 		print("making audio",block["text"],path)
+
+	
+
+
 		# # Run TTS to file
 		if not tts and not args.dryrun:
 			tts = init_tts()
 		if tts:
-			tts.tts_to_file(
-				text=block["text"],
-				file_path=path,
-				speaker_wav=base_params["speaker_wav"],
-				language=base_params["language_idx"],
-				# speed=1.1   # >1.0 faster, <1.0 slower
-
-			)
+			while True:
+				tts.tts_to_file(
+					text=block["text"],
+					file_path=path,
+					speaker_wav=base_params["speaker_wav"],
+					language=base_params["language_idx"],
+					speed=speed_factor
+				)
+				clip = AudioFileClip(str(path))
+				clip_duration = clip.duration
+				
+				if clip_duration>block_duration:
+					speed_factor*=1.5
+					print(f"generated clip too long ({clip_duration} vs {block_duration}), retrying with higher speed factor ({speed_factor})", )
+					continue
+				print(f"audio complete {clip_duration} vs {block_duration}")
+				break
 	print("tts done")
-
 	print("making combined audio file")
 	
 	# for file in [x for x in list(work_dir.glob("*.wav"))]:
@@ -195,7 +220,20 @@ def main():
 
 		start, end = srt_time_to_sec(block["timing"])
 
-		clip = AudioFileClip(str(wav_file)).with_start(start)
+		block_duration = end-start
+
+		clip = AudioFileClip(str(wav_file))
+		clip_duration = clip.duration
+
+		speed_factor = clip_duration/block_duration 
+		if speed_factor>1:
+			print("this clip is too slow and will overlap its peer", block["index"])
+			# clip = speed_up_clip(clip,speed_factor)
+
+		clip=clip.with_start(start)
+		# print(block_duration , clip_duration)
+		# print(clip_duration, speed_factor)
+		# exit()
 		clips.append(clip)
 
 
