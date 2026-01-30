@@ -22,3 +22,5 @@ def speed_up_clip(clip, speed):
 
     # wrap in AudioArrayClip
     return AudioArrayClip(stretched, fps=sr)
+
+
