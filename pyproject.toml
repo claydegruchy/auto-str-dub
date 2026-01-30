@@ -6,11 +6,14 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
 	    "coqui-tts[codec]>=0.24.3",
+	    "demucs>=4.0.1",
 	    "fastapi[standard]>=0.115.11",
 	    "langchain>=0.3.20",
 	    "langchain-community>=0.3.19",
+	    "librosa>=0.11.0",
 	    "moviepy>=2.1.2",
 	    "nltk>=3.9.1",
+	    "numpy>=2.3.5",
 	    "pydub>=0.25.1",
 	    "pymupdf>=1.25.4",
 	    "pymupdf4llm>=0.0.17",

@@ -4,9 +4,9 @@ import os
 import sys
 import argparse
 import re
-from timescale import speed_up_clip 
-
-from moviepy import AudioFileClip, CompositeAudioClip,VideoFileClip,afx, vfx
+from utilties import speed_up_clip 
+from pathlib import Path
+from moviepy import AudioFileClip, CompositeAudioClip,VideoFileClip,afx, vfx,AudioArrayClip
 
 
 
@@ -147,6 +147,10 @@ def main():
 				block_duration =next_start-start-.2
 				print("extra duration", block_duration)
 
+		block["duration"] = block_duration
+		block["start"] = start
+		block["end"] = end
+
 		
 		if args.limit is not None and i>args.limit:
 			print("limit reached")
@@ -249,15 +253,45 @@ def main():
 		exit()
 
 
+
 	video_output_path = video_path.parent / f"dubbed {video_path.name}"
 
 	video = VideoFileClip(video_path)
 
+	print("removing voices from current clip")
+	audio = video.audio
+	audio_fps = audio.fps
+	audio_array = audio.to_soundarray(fps=audio_fps)
+
+	
+	print("iterating blocks and lowering volume")
+	i=0
+	for block in str_json:
+		print(block["duration"])
+		
+		if args.limit is not None and i>args.limit:
+			print("limit reached")
+			break
+		start_sample = int(block["start"] * audio_fps)
+		end_sample = int(block["end"] * audio_fps)
+		audio_array[start_sample:end_sample] *= 0.1  # reduce volume
+		i+=1
+
+
 	# Load audio
-	new_audio = AudioFileClip(str(combined_path))
+	new_voice = AudioFileClip(str(combined_path))
+
+	# 4. Create processed audio clip
+	processed_audio_clip = AudioArrayClip(audio_array, fps=audio_fps)
+	print("joining new voice and old background sounds together")
+
+	# 5. Combine with overlay audio (already loaded as new_voice)
+	final_audio = CompositeAudioClip([processed_audio_clip, new_voice])
+
+	print("truncating")
 
 	# Truncate audio slightly to avoid MoviePy overshoot
-	truncated_audio = new_audio.subclipped(0, new_audio.duration - 0.05)  # 50ms shorter
+	truncated_audio = final_audio.subclipped(0, new_voice.duration - 0.05)  # 50ms shorter
 
 	# Clip video to match truncated audio
 	video = video.subclipped(0, truncated_audio.duration)
@@ -287,7 +321,6 @@ def main():
 
 	print(f"Output written to {args.out}")
 	print(f"Working directory: {work_dir}")
-
 
 if __name__ == "__main__":
 	main()
